@@ -28,7 +28,7 @@ exports.createQuestion = async (req, res) => {
 
     res.status(201).json({ success: true, message: 'Question created successfully', question });
   } catch (error) {
-    console.error('Error creating question:', error); require('fs').writeFileSync('C:\\Users\\Vidwath\\.gemini\\antigravity-ide\\brain\\db4b5d52-84ec-4c56-8ec7-ea45b3cf8a33\\scratch\\error.log', error.stack || error.toString());
+    console.error('Error creating question:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
