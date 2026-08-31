@@ -8,5 +8,6 @@ router.use(authenticate, authorize('admin'));
 router.get('/', adminStudentController.getAllStudents);
 router.get('/:studentId', adminStudentController.getStudentDetails);
 router.get('/:studentId/results', adminStudentController.getStudentResults);
+router.delete('/:studentId', adminStudentController.deleteStudent);
 
 module.exports = router;

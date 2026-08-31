@@ -1,4 +1,5 @@
-const { User, Result, Exam, ExamAttempt } = require('../models');
+const { User, Result, Exam, ExamAttempt, Answer, sequelize } = require('../models');
+const { Op } = require('sequelize');
 
 exports.getAllStudents = async (req, res) => {
   try {
@@ -7,7 +8,6 @@ exports.getAllStudents = async (req, res) => {
     const search = req.query.search || '';
     const offset = (page - 1) * limit;
 
-    const { Op } = require('sequelize');
     const whereClause = { role: 'student' };
     if (search) {
       whereClause[Op.or] = [
@@ -89,5 +89,78 @@ exports.getStudentResults = async (req, res) => {
   } catch (error) {
     console.error('Error getting student results:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+exports.deleteStudent = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const studentId = req.params.studentId;
+
+    const student = await User.findOne({
+      where: { id: studentId, role: 'student' }
+    });
+
+    if (!student) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: 'Student not found or is not a student account.' });
+    }
+
+    // Find all attempts by this student
+    const attempts = await ExamAttempt.findAll({
+      where: { studentId },
+      attributes: ['id'],
+      transaction
+    });
+
+    const attemptIds = attempts.map(a => a.id);
+
+    if (attemptIds.length > 0) {
+      // 1. Delete answers associated with these attempts
+      await Answer.destroy({
+        where: { attemptId: { [Op.in]: attemptIds } },
+        transaction
+      });
+
+      // 2. Delete results associated with these attempts or this student
+      await Result.destroy({
+        where: {
+          [Op.or]: [
+            { attemptId: { [Op.in]: attemptIds } },
+            { studentId }
+          ]
+        },
+        transaction
+      });
+
+      // 3. Delete attempts
+      await ExamAttempt.destroy({
+        where: { id: { [Op.in]: attemptIds } },
+        transaction
+      });
+    } else {
+      // Delete any direct results
+      await Result.destroy({
+        where: { studentId },
+        transaction
+      });
+    }
+
+    // 4. Delete the student User record
+    await User.destroy({
+      where: { id: studentId },
+      transaction
+    });
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: `Student '${student.name}' deleted successfully.`
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error deleting student:', error);
+    res.status(500).json({ success: false, message: 'Server error deleting student.' });
   }
 };
